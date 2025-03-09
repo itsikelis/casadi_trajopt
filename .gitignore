@@ -1,0 +1,9 @@
+# Python cache
+__pycache__
+
+# Program outputs
+*.csv
+*.png
+*.svg
+*.jpg
+*.jpeg

@@ -1,0 +1,3 @@
+[submodule ".ci/libhsl"]
+	path = .ci/libhsl
+	url = git@github.com:EnricoMingo/libhsl.git
