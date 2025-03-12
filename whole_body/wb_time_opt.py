@@ -21,15 +21,15 @@ from pinocchio import casadi as cpin
 
 # Find urdf file
 path_to_curr_folder = os.path.dirname(os.path.realpath(__file__))
-urdffile = os.path.join(path_to_curr_folder, "g1_23dof.urdf")
+urdffile = os.path.join(path_to_curr_folder, "urdf/g1_23dof.urdf")
 
 params = Parameters()
-params.total_duration = 0.5
-params.num_shooting_states = 50
+params.total_duration = 0.1
+params.num_shooting_states = 10
 params.num_rollout_states = 1
 params.model_urdf_path = urdffile
 params.contact_ee_names = ["lf", "rf"]
-params.ee_phase_sequence = {"lf": list((20, 20, 10)), "rf": list((20, 20, 10))}
+params.ee_phase_sequence = {"lf": list((10,)), "rf": list((10,))}
 params.is_init_contact = {"lf": True, "rf": True}
 params.num_contact_points_per_ee = {
     "lf": 4,
@@ -119,7 +119,7 @@ v_last = v0
 ## End Model Stuff ##
 
 ## Durations ##
-dt0 = 0.05
+dt0 = params.total_duration / params.num_shooting_states / params.num_rollout_states
 dt_min = 0.02
 dt_max = 0.1
 
@@ -161,7 +161,7 @@ t = 0.0
 for i in range(params.num_shooting_states):
 
     # Add postural cost
-    J += 1e3 * cs.sumsqr(x[7:nq] - q_init[7:])
+    # J += 1e3 * cs.sumsqr(x[7:nq] - q_init[7:])
 
     # Integrate for num_rollout_states
     for j in range(params.num_rollout_states):
@@ -174,44 +174,41 @@ for i in range(params.num_shooting_states):
 
         # J += 1.0 * cs.dot(a, a)
         # Add centroidal dynamics in cost
-        J += 1e3 * cs.sumsqr(model.angular_momentum(x[:nq], x[nq:], a))
+        # J += 1e3 * cs.sumsqr(model.angular_momentum(x[:nq], x[nq:], a))
 
-        JtF_sum = 0.0
+        JtF_sum = cs.SX.zeros(29, 1)
         for frame_name, phase_seq in frame_phase_sequence.items():
             # Determine if ee is in contact
             in_contact = node_is_in_contact(
                 i, phase_seq, frame_is_init_contact[frame_name]
             )
-            print(frame_name, "(", i, "): ", ("contact" if in_contact else "swing"))
-
-            jac = model.frame_jacobian(frame_name, x[:nq])
-
-            # Create force variable
-            fc = cs.SX.sym(
-                "fc_" + frame_name + "_" + str(i) + "_" + str(j),
-                params.dim_f_ext,
-                1,
-            )
-            w += [fc]
-            lbw += fc_min
-            ubw += fc_max
-            w0 += fc0
+            # print(frame_name, "(", i, "): ", ("contact" if in_contact else "swing"))
 
             # J += cs.dot(fc, fc)
 
+            # if not in_contact:
+            #     J += 3e5 * cs.sumsqr(x[2] - (q0[2] + 0.2))
+
             ## End-effector distance from ground ##
             ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
-
-            if not in_contact:
-                J += 3e5 * cs.sumsqr(x[2] - (q0[2] + 0.2))
 
             g += [ee_pos[2] - env.ground_z]
             lbg += [0.0]
             ubg += [0.0 if in_contact else cs.inf]
             ## End end-effector distance from ground ##
 
-            ## Zero velocity and acceleration in contact ##
             if in_contact:
+                jac = model.frame_jacobian(frame_name, x[:nq])
+                # Create force variable
+                fc = cs.SX.sym(
+                    "fc_" + frame_name + "_" + str(i) + "_" + str(j),
+                    params.dim_f_ext,
+                    1,
+                )
+                w += [fc]
+                lbw += fc_min
+                ubw += fc_max
+                w0 += fc0
                 ## Zero velocity ##
                 g += [jac[0:3, :] @ x[nq:]]
                 lbg += [0.0 for _ in range(3)]
@@ -221,7 +218,6 @@ for i in range(params.num_shooting_states):
                 # g += [jac[0:3, :] @ a + jacdot[0:3, :] @ x[nq:]]
                 # lbg += [0.0 for _ in range(3)]
                 # ubg += [0.0 for _ in range(3)]
-                ## End zero velocity and acceleration in contact ##
 
                 ## Friction cone constraint ##
                 # Normal component
@@ -238,17 +234,20 @@ for i in range(params.num_shooting_states):
                 ]
                 lbg += [0.0, 0.0, 0.0, 0.0]
                 ubg += [cs.inf, cs.inf, cs.inf, cs.inf]
-                ## End friction cone constraint ##
-            else:
-                ## Zero force when not in contact ##
-                g += [fc]
-                lbg += [0.0 for _ in range(params.dim_f_ext)]
-                ubg += [0.0 for _ in range(params.dim_f_ext)]
-                ## End zero force when not in contact ##
 
+                JtF = cs.mtimes(jac[0:3, :].T, fc)
+                JtF_sum += JtF
+
+            # else:
+            #     ## Zero force when not in contact ##
+            #     g += [fc]
+            #     lbg += [0.0 for _ in range(params.dim_f_ext)]
+            #     ubg += [0.0 for _ in range(params.dim_f_ext)]
+            #     ## End zero force when not in contact ##
+            #
             ## Calculate JtF sum
-            JtF = cs.mtimes(jac[0:3, :].T, fc)
-            JtF_sum += JtF
+            # JtF = cs.mtimes(jac[0:3, :].T, fc)
+            # JtF_sum += JtF
 
         g += [model.inverse_dynamics(x[:nq], x[nq:], a, JtF_sum)]
         lbg += tau_min
@@ -257,11 +256,12 @@ for i in range(params.num_shooting_states):
         # Contact constraints
 
         # Semi-implicit Euler integration
-        dt = cs.SX.sym("dt_" + str(i), 1)
-        w += [dt]
-        lbw += [dt_min]
-        ubw += [dt_max]
-        w0 += [dt0]
+        dt = dt0
+        # dt = cs.SX.sym("dt_" + str(i), 1)
+        # w += [dt]
+        # lbw += [dt_min]
+        # ubw += [dt_max]
+        # w0 += [dt0]
 
         v = x[nq:] + a * dt
         p = x[:nq] + v_to_qdot(nq, x[:nq], v) * dt
