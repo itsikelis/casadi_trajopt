@@ -130,6 +130,15 @@ class Model:
         jac = cpin.getFrameJacobian(self.cmodel, self.cdata, frame_id, ref_frame)
         return jac
 
+    def frame_jacobian_time_var(self, frame_name: str, q: cs.SX) -> cs.SX:
+        cpin.computeJointJacobians(self.cmodel, self.cdata, q)
+        frame_id = self.model.getFrameId(frame_name)
+        ref_frame = pin.LOCAL_WORLD_ALIGNED
+        jac = cpin.getFrameJacobianTimeVariation(
+            self.cmodel, self.cdata, frame_id, ref_frame
+        )
+        return jac
+
     def inverse_dynamics(self, q: cs.SX, v: cs.SX, a: cs.SX, JtF_sum: cs.SX) -> cs.SX:
         return cpin.rnea(self.cmodel, self.cdata, q, v, a) - JtF_sum
 
@@ -168,6 +177,26 @@ class Phase:
 
     def __str__(self):
         return f"{self.type}({self.duration}s)"
+
+
+def addFrictionConeConstraint(
+    env: Environment, fc: cs.SX, g: list[cs.SX], lbg: list[float], ubg: list[float]
+):
+    ## Friction cone constraint ##
+    # Normal component
+    g += [cs.dot(fc, env.ground_n)]
+    lbg += [0.0]
+    ubg += [cs.inf]
+    # Tangentials
+    lim = (env.ground_mu / cs.sqrt(2.0)) * cs.dot(fc, env.ground_n)
+    g += [
+        cs.dot(fc, env.ground_b) + lim,
+        -cs.dot(fc, env.ground_b) + lim,
+        cs.dot(fc, env.ground_t) + lim,
+        -cs.dot(fc, env.ground_t) + lim,
+    ]
+    lbg += [0.0, 0.0, 0.0, 0.0]
+    ubg += [cs.inf, cs.inf, cs.inf, cs.inf]
 
 
 def phase_composer(contact_durations, swing_durations, is_init_contact):

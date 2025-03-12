@@ -184,21 +184,11 @@ for i in range(params.num_shooting_states):
             )
             # print(frame_name, "(", i, "): ", ("contact" if in_contact else "swing"))
 
-            # J += cs.dot(fc, fc)
-
             # if not in_contact:
             #     J += 3e5 * cs.sumsqr(x[2] - (q0[2] + 0.2))
 
-            ## End-effector distance from ground ##
-            ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
-
-            g += [ee_pos[2] - env.ground_z]
-            lbg += [0.0]
-            ubg += [0.0 if in_contact else cs.inf]
-            ## End end-effector distance from ground ##
-
             if in_contact:
-                jac = model.frame_jacobian(frame_name, x[:nq])
+
                 # Create force variable
                 fc = cs.SX.sym(
                     "fc_" + frame_name + "_" + str(i) + "_" + str(j),
@@ -209,45 +199,37 @@ for i in range(params.num_shooting_states):
                 lbw += fc_min
                 ubw += fc_max
                 w0 += fc0
-                ## Zero velocity ##
+
+                # J += cs.dot(fc, fc)
+
+                # End effector on ground
+                ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
+                g += [ee_pos[2] - env.ground_z]
+                lbg += [0.0]
+                ubg += [0.0]
+
+                # Zero velocity in contact
+                jac = model.frame_jacobian(frame_name, x[:nq])
                 g += [jac[0:3, :] @ x[nq:]]
                 lbg += [0.0 for _ in range(3)]
                 ubg += [0.0 for _ in range(3)]
 
                 ## Zero acceleration ##
+                # jacdot = model.frame_jacobian_time_var(frame_name, x[:nq])
                 # g += [jac[0:3, :] @ a + jacdot[0:3, :] @ x[nq:]]
                 # lbg += [0.0 for _ in range(3)]
                 # ubg += [0.0 for _ in range(3)]
 
-                ## Friction cone constraint ##
-                # Normal component
-                g += [cs.dot(fc, env.ground_n)]
-                lbg += [0.0]
-                ubg += [cs.inf]
-                # Tangentials
-                lim = (env.ground_mu / cs.sqrt(2.0)) * cs.dot(fc, env.ground_n)
-                g += [
-                    cs.dot(fc, env.ground_b) + lim,
-                    -cs.dot(fc, env.ground_b) + lim,
-                    cs.dot(fc, env.ground_t) + lim,
-                    -cs.dot(fc, env.ground_t) + lim,
-                ]
-                lbg += [0.0, 0.0, 0.0, 0.0]
-                ubg += [cs.inf, cs.inf, cs.inf, cs.inf]
+                addFrictionConeConstraint(env, fc, g, lbg, ubg)
 
                 JtF = cs.mtimes(jac[0:3, :].T, fc)
                 JtF_sum += JtF
-
-            # else:
-            #     ## Zero force when not in contact ##
-            #     g += [fc]
-            #     lbg += [0.0 for _ in range(params.dim_f_ext)]
-            #     ubg += [0.0 for _ in range(params.dim_f_ext)]
-            #     ## End zero force when not in contact ##
-            #
-            ## Calculate JtF sum
-            # JtF = cs.mtimes(jac[0:3, :].T, fc)
-            # JtF_sum += JtF
+            else:
+                # End effector above ground
+                ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
+                g += [ee_pos[2] - env.ground_z]
+                lbg += [0.0]
+                ubg += [cs.inf]
 
         g += [model.inverse_dynamics(x[:nq], x[nq:], a, JtF_sum)]
         lbg += tau_min
