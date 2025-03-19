@@ -11,7 +11,10 @@ class Parameters:
         self.num_shooting_states: int = 0
         self.num_rollout_states: int = 0
 
+        self.opt_dt: bool = False
+
         self.model_urdf_path: string = ""
+        self.model_foot_sole_link_name: string = ""
 
         self.contact_ee_names: list[str] = []
         self.ee_phase_sequence: dict[str, int] = {}
@@ -29,60 +32,6 @@ class Parameters:
             assert self.num_shooting_states == num_states
 
 
-class StandingParameters(Parameters):
-    def __init__(self) -> None:
-        super().__init__()
-
-        self.total_duration: float = 0.5
-        self.num_shooting_states: int = 10
-        self.num_rollout_states: int = 1
-
-        self.model_urdf_path: string = ""
-
-        self.contact_ee_names: list = ["lf", "rf"]
-        self.ee_phase_sequence: dict[str, int] = {"lf": list((10,)), "rf": list((10,))}
-        self.is_init_contact: dict[str, bool] = {"lf": True, "rf": True}
-
-        self.num_contact_points_per_ee: dict[str, int] = {"lf": 4, "rf": 4}
-
-        self.dim_f_ext: int = 3
-
-        self.q0: list[float] = [
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            -0.6,
-            0.0,
-            0.0,
-            1.2,
-            -0.6,
-            0.0,
-            -0.6,
-            0.0,
-            0.0,
-            1.2,
-            -0.6,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ]
-
-        assert_validity()
-
-
 class Model:
     def __init__(self, params: Parameters):
         self.model: pin.Model = pin.buildModelFromUrdf(params.model_urdf_path)
@@ -91,7 +40,13 @@ class Model:
         self.cmodel: cpin.Model = cpin.Model(self.model)
         self.cdata: cpin.Model = self.cmodel.createData()
 
-        self.q0: list[float] = self._offset_base_from_ground(params.q0)
+        self.q0: list[float] = params.q0.copy()
+        pin.framesForwardKinematics(self.model, self.data, np.array(self.q0))
+        frame_id = self.model.getFrameId(params.model_foot_sole_link_name)
+        base_pos_offset = self.data.oMf[frame_id].translation
+        base_rot_offset = R_to_quat(self.data.oMf[frame_id].rotation)
+        self.q0[2] = float(-base_pos_offset[2])
+        self.q0[3:7] = (base_rot_offset).tolist()
 
     def nq(self) -> int:
         return self.model.nq
@@ -116,6 +71,10 @@ class Model:
 
     def upper_joint_effort_lim(self) -> list[float]:
         return self.model.effortLimit.tolist()[7:]
+
+    def total_mass(self) -> float:
+        pin.computeTotalMass(self.model, self.data)
+        return self.data.mass[0]
 
     def frame_dist_from_ground(self, frame_name: str, q: cs.SX) -> cs.SX:
         cpin.framesForwardKinematics(self.cmodel, self.cdata, q)
@@ -146,15 +105,6 @@ class Model:
         cpin.computeCentroidalMomentumTimeVariation(self.cmodel, self.cdata, q, v, a)
         return self.cdata.hg.angular
 
-    def _offset_base_from_ground(self, q: list) -> list[float]:
-        q0 = q.copy()
-        pin.framesForwardKinematics(self.model, self.data, np.array(q0))
-        frame_id = self.model.getFrameId("right_foot_point_contact")
-        base_pos_offset = self.data.oMf[frame_id].translation
-        base_rot_offset = R_to_quat(self.data.oMf[frame_id].rotation)
-        q0[2] = float(-base_pos_offset[2])
-        q0[3:7] = (base_rot_offset).tolist()
-
         return q0
 
 
@@ -168,15 +118,6 @@ class Environment:
         self.ground_t: list[float] = [1.0, 0.0, 0.0]
 
         self.grav: float = 9.81
-
-
-class Phase:
-    def __init__(self, type: str, duration: float):
-        self.type: str = type
-        self.duration: float = duration
-
-    def __str__(self):
-        return f"{self.type}({self.duration}s)"
 
 
 def addFrictionConeConstraint(
