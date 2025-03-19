@@ -294,7 +294,7 @@ for i in range(params.num_shooting_states):
 # Final x solution
 x[:, col_idx] = w_opt[w_opt_idx:]
 
-np.savetxt("x.csv", x, delimiter="\t,")
-np.savetxt("a.csv", a, delimiter=",")
-np.savetxt("fc.csv", fc, delimiter=",")
-np.savetxt("dts.csv", dts, delimiter=",")
+np.savetxt("csv/x.csv", x, delimiter="\t,")
+np.savetxt("csv/a.csv", a, delimiter=",")
+np.savetxt("csv/fc.csv", fc, delimiter=",")
+np.savetxt("csv/dts.csv", dts, delimiter=",")
