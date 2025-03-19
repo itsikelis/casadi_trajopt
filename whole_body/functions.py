@@ -48,6 +48,9 @@ class Model:
         self.q0[2] = float(-base_pos_offset[2])
         self.q0[3:7] = (base_rot_offset).tolist()
 
+        # for i in range(self.model.njoints):
+        #     print(f"{self.model.names[i]}")
+
     def nq(self) -> int:
         return self.model.nq
 
