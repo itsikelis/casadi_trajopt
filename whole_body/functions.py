@@ -70,10 +70,10 @@ class Model:
         return self.model.velocityLimit.tolist()
 
     def lower_joint_effort_lim(self) -> list[float]:
-        return (-self.model.effortLimit).tolist()[7:]
+        return (-self.model.effortLimit).tolist()[6:]
 
     def upper_joint_effort_lim(self) -> list[float]:
-        return self.model.effortLimit.tolist()[7:]
+        return self.model.effortLimit.tolist()[6:]
 
     def total_mass(self) -> float:
         pin.computeTotalMass(self.model, self.data)
