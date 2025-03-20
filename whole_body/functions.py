@@ -77,10 +77,10 @@ class Model:
         return self.model.velocityLimit.tolist()
 
     def lower_joint_effort_lim(self) -> list[float]:
-        return (-self.model.effortLimit).tolist()[7:]
+        return (-self.model.effortLimit).tolist()[6:]
 
     def upper_joint_effort_lim(self) -> list[float]:
-        return self.model.effortLimit.tolist()[7:]
+        return self.model.effortLimit.tolist()[6:]
 
     def difference(self, x0, x1):
         x0_quat = cs.vertcat(cpin.exp6_quat(x0[0:6]), x0[6:])

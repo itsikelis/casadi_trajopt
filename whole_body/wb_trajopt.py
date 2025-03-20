@@ -145,15 +145,15 @@ for i in range(params.num_shooting_states):
 
                 ## End effector on ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
-                g += [ee_pos[2] - env.ground_z]
-                lbg += [0.0]
-                ubg += [0.0]
+                # g += [ee_pos[2] - env.ground_z]
+                # lbg += [0.0]
+                # ubg += [0.0]
 
                 ## Zero velocity in contact
                 jac = model.frame_jacobian(frame_name, x[:nq])
-                g += [jac[0:3, :] @ x[nq:]]
-                lbg += [0.0 for _ in range(3)]
-                ubg += [0.0 for _ in range(3)]
+                # g += [jac[0:3, :] @ x[nq:]]
+                # lbg += [0.0 for _ in range(3)]
+                # ubg += [0.0 for _ in range(3)]
 
                 ## Zero acceleration in contact
                 # jacdot = model.frame_jacobian_time_var(frame_name, x[:nq])
@@ -161,19 +161,20 @@ for i in range(params.num_shooting_states):
                 # lbg += [0.0 for _ in range(3)]
                 # ubg += [0.0 for _ in range(3)]
 
-                addFrictionConeConstraint(env, fc, g, lbg, ubg)
+                # addFrictionConeConstraint(env, fc, g, lbg, ubg)
 
                 JtF = cs.mtimes(jac[0:3, :].T, fc)
                 JtF_sum += JtF
             else:
                 # End effector above ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
-                g += [ee_pos[2] - env.ground_z]
-                lbg += [0.0]
-                ubg += [cs.inf]
+                # g += [ee_pos[2] - env.ground_z]
+                # lbg += [0.0]
+                # ubg += [cs.inf]
 
         ## Add dynamics constraint
         g += [model.inverse_dynamics(x[:nq], x[nq:], a, JtF_sum)]
+        print(model.inverse_dynamics(x[:nq], x[nq:], a, JtF_sum).shape)
         lbg += tau_min
         ubg += tau_max
 
@@ -208,10 +209,10 @@ for i in range(params.num_shooting_states):
     ## Defect constraint
     # g += [x - xk]
     # print(model.difference(xk[:nq], x[:nq]).shape)
-    g += [model.difference(xk[:nq], x[:nq])]
-    g += [xk[nq:] - x[nq:]]
-    lbg += [0.0 for _ in range(nx)]
-    ubg += [0.0 for _ in range(nx)]
+    # g += [model.difference(xk[:nq], x[:nq])]
+    # g += [xk[nq:] - x[nq:]]
+    # lbg += [0.0 for _ in range(nx)]
+    # ubg += [0.0 for _ in range(nx)]
 
     ## Current variable = next variable
     x = xk
@@ -219,6 +220,10 @@ for i in range(params.num_shooting_states):
 # g += [dt_sum - total_duration]
 # lbg += [0.0]
 # ubg += [0.0]
+
+print(cs.vertcat(*g).shape[0])
+print(len(ubg))
+print(len(lbg))
 
 ## Assert vector sizes are correct
 assert cs.vertcat(*w).shape[0] == len(w0) == len(lbw) == len(ubw)
