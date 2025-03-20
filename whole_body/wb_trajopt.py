@@ -21,8 +21,8 @@ from pinocchio import casadi as cpin
 
 ## Parameter Setup ##
 
-params = G1_29DOF_PARAMS
-# params = TALOS_PARAMS
+# params = G1_29DOF_PARAMS
+params = TALOS_PARAMS
 
 params.assert_validity()
 
@@ -32,7 +32,7 @@ model = Model(params)
 ## Create environment
 env = Environment()
 
-nq = model.nq()
+nq = model.nq() - 1
 nv = model.nv()
 nx = nq + nv
 
@@ -58,7 +58,7 @@ frame_is_init_contact = {
     "right_foot_lower_left": params.is_init_contact["rf"],
 }
 
-q0 = model.q0
+q0 = model.q_init
 v0 = [0.0 for _ in range(nv)]
 a0 = [0.0 for _ in range(nv)]
 fc0 = [0.0, 0.0, model.total_mass() * env.grav / 8]
@@ -84,8 +84,8 @@ v_max = model.upper_vel_lim()
 a_min = [-cs.inf for _ in range(nv)]
 a_max = [cs.inf for _ in range(nv)]
 
-tau_min = [0.0 for _ in range(7)] + model.lower_joint_effort_lim()
-tau_max = [0.0 for _ in range(7)] + model.upper_joint_effort_lim()
+tau_min = [0.0 for _ in range(6)] + model.lower_joint_effort_lim()
+tau_max = [0.0 for _ in range(6)] + model.upper_joint_effort_lim()
 
 fc_min = [-cs.inf for _ in range(params.dim_f_ext)]
 fc_max = [cs.inf for _ in range(params.dim_f_ext)]
@@ -109,7 +109,7 @@ w0 += q0 + v0
 for i in range(params.num_shooting_states):
     ## State related costs
     # J += 1e-5 * cs.dot(x, x)  # Regularisation
-    # J += 1e-9 * cs.sumsqr(x[7:nq] - q_init[7:]) # Postural
+    # J += 1e-10 * cs.sumsqr(x[7:nq] - q_init[7:])  # Postural
     for j in range(params.num_rollout_states):
         ## Control acceleration variable
         a = cs.SX.sym("a_" + str(i) + "_" + str(j), nv, 1)
@@ -118,7 +118,7 @@ for i in range(params.num_shooting_states):
         ubw += a_max
         w0 += a0
         ## Control acceleration related costs
-        J += 1e-5 * cs.dot(a, a)  # Regularisation
+        J += cs.dot(a, a)  # Regularisation
         # J += cs.sumsqr(model.angular_momentum(x[:nq], x[nq:], a))  # Centroidal dynamics
 
         JtF_sum = cs.SX.zeros(model.nv(), 1)
@@ -141,7 +141,7 @@ for i in range(params.num_shooting_states):
                 w0 += fc0
 
                 ## Force related costs
-                # J += 1e-9 * cs.dot(fc, fc) # Regularisation
+                # J += 1e-6 * cs.dot(fc, fc)  # Regularisation
 
                 ## End effector on ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
@@ -188,7 +188,7 @@ for i in range(params.num_shooting_states):
 
         # Semi-implicit Euler integration
         v = x[nq:] + a * dt
-        p = cpin.integrate(model.cmodel, x[:nq], v * dt)
+        p = model.integrate(x[:nq], v * dt)
         x = cs.vertcat(p, v)
 
     ## Add intermediate state as variable
@@ -206,7 +206,10 @@ for i in range(params.num_shooting_states):
     w0 += q0 + v0
 
     ## Defect constraint
-    g += [x - xk]
+    # g += [x - xk]
+    # print(model.difference(xk[:nq], x[:nq]).shape)
+    g += [model.difference(xk[:nq], x[:nq])]
+    g += [xk[nq:] - x[nq:]]
     lbg += [0.0 for _ in range(nx)]
     ubg += [0.0 for _ in range(nx)]
 
@@ -220,6 +223,8 @@ for i in range(params.num_shooting_states):
 ## Assert vector sizes are correct
 assert cs.vertcat(*w).shape[0] == len(w0) == len(lbw) == len(ubw)
 assert cs.vertcat(*g).shape[0] == len(lbg) == len(ubg)
+
+exit()
 
 ## Create an NLP solver
 opts = {

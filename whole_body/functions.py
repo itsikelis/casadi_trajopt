@@ -40,13 +40,20 @@ class Model:
         self.cmodel: cpin.Model = cpin.Model(self.model)
         self.cdata: cpin.Model = self.cmodel.createData()
 
-        self.q0: list[float] = params.q0.copy()
-        pin.framesForwardKinematics(self.model, self.data, np.array(self.q0))
+        q0 = params.q0.copy()
+        pin.framesForwardKinematics(self.model, self.data, np.array(q0))
         frame_id = self.model.getFrameId(params.model_foot_sole_link_name)
         base_pos_offset = self.data.oMf[frame_id].translation
         base_rot_offset = R_to_quat(self.data.oMf[frame_id].rotation)
-        self.q0[2] = float(-base_pos_offset[2])
-        self.q0[3:7] = (base_rot_offset).tolist()
+
+        b_pose = np.hstack((-base_pos_offset, base_rot_offset))
+        self.q_init = np.hstack(
+            (
+                pin.log6_quat(b_pose).linear,
+                pin.log6_quat(b_pose).angular,
+                params.q0[7:].copy(),
+            )
+        ).tolist()
 
         # for i in range(self.model.njoints):
         #     print(f"{self.model.names[i]}")
@@ -58,10 +65,10 @@ class Model:
         return self.model.nv
 
     def lower_pos_lim(self) -> list[float]:
-        return self.model.lowerPositionLimit.tolist()
+        return [-cs.inf for _ in range(6)] + self.model.lowerPositionLimit.tolist()[7:]
 
     def upper_pos_lim(self) -> list[float]:
-        return self.model.upperPositionLimit.tolist()
+        return [cs.inf for _ in range(6)] + self.model.upperPositionLimit.tolist()[7:]
 
     def lower_vel_lim(self) -> list[float]:
         return (-self.model.velocityLimit).tolist()
@@ -75,25 +82,38 @@ class Model:
     def upper_joint_effort_lim(self) -> list[float]:
         return self.model.effortLimit.tolist()[7:]
 
+    def difference(self, x0, x1):
+        x0_quat = cs.vertcat(cpin.exp6_quat(x0[0:6]), x0[6:])
+        x1_quat = cs.vertcat(cpin.exp6_quat(x1[0:6]), x1[6:])
+        res = cpin.difference(self.cmodel, x0_quat, x1_quat)
+        return cs.vertcat(
+            cpin.log6_quat(res[0:7]).linear,
+            cpin.log6_quat(res[0:7]).angular,
+            res[7:],
+        )
+
     def total_mass(self) -> float:
         pin.computeTotalMass(self.model, self.data)
         return self.data.mass[0]
 
     def frame_dist_from_ground(self, frame_name: str, q: cs.SX) -> cs.SX:
-        cpin.framesForwardKinematics(self.cmodel, self.cdata, q)
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        cpin.framesForwardKinematics(self.cmodel, self.cdata, q_quat)
         frame_id = self.model.getFrameId(frame_name)
         ee_pos = self.cdata.oMf[frame_id].translation
         return ee_pos
 
     def frame_jacobian(self, frame_name: str, q: cs.SX) -> cs.SX:
-        cpin.computeJointJacobians(self.cmodel, self.cdata, q)
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        cpin.computeJointJacobians(self.cmodel, self.cdata, q_quat)
         frame_id = self.model.getFrameId(frame_name)
         ref_frame = pin.LOCAL_WORLD_ALIGNED
         jac = cpin.getFrameJacobian(self.cmodel, self.cdata, frame_id, ref_frame)
         return jac
 
     def frame_jacobian_time_var(self, frame_name: str, q: cs.SX) -> cs.SX:
-        cpin.computeJointJacobians(self.cmodel, self.cdata, q)
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        cpin.computeJointJacobians(self.cmodel, self.cdata, q_quat)
         frame_id = self.model.getFrameId(frame_name)
         ref_frame = pin.LOCAL_WORLD_ALIGNED
         jac = cpin.getFrameJacobianTimeVariation(
@@ -102,13 +122,24 @@ class Model:
         return jac
 
     def inverse_dynamics(self, q: cs.SX, v: cs.SX, a: cs.SX, JtF_sum: cs.SX) -> cs.SX:
-        return cpin.rnea(self.cmodel, self.cdata, q, v, a) - JtF_sum
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        return cpin.rnea(self.cmodel, self.cdata, q_quat, v, a) - JtF_sum
+
+    def integrate(self, q: cs.SX, v: cs.SX) -> cs.SX:
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        res = cpin.integrate(self.cmodel, q_quat, v)
+        return cs.vertcat(
+            cpin.log6_quat(res[0:7]).linear,
+            cpin.log6_quat(res[0:7]).angular,
+            res[7:],
+        )
 
     def angular_momentum(self, q: cs.SX, v: cs.SX, a: cs.SX) -> cs.SX:
-        cpin.computeCentroidalMomentumTimeVariation(self.cmodel, self.cdata, q, v, a)
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        cpin.computeCentroidalMomentumTimeVariation(
+            self.cmodel, self.cdata, q_quat, v, a
+        )
         return self.cdata.hg.angular
-
-        return q0
 
 
 class Environment:
