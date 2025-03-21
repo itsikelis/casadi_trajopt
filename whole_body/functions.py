@@ -25,6 +25,7 @@ class Parameters:
         self.dim_f_ext: int = 0
 
         self.q0: list[float] = []
+        self.q1: list[float] = []
 
     def assert_validity(self) -> None:
         for ee in self.ee_phase_sequence:
@@ -40,13 +41,21 @@ class Model:
         self.cmodel: cpin.Model = cpin.Model(self.model)
         self.cdata: cpin.Model = self.cmodel.createData()
 
-        self.q0: list[float] = params.q0.copy()
-        pin.framesForwardKinematics(self.model, self.data, np.array(self.q0))
         frame_id = self.model.getFrameId(params.model_foot_sole_link_name)
+
+        self.q_init: list[float] = params.q0.copy()
+        pin.framesForwardKinematics(self.model, self.data, np.array(self.q_init))
         base_pos_offset = self.data.oMf[frame_id].translation
         base_rot_offset = R_to_quat(self.data.oMf[frame_id].rotation)
-        self.q0[2] = float(-base_pos_offset[2])
-        self.q0[3:7] = (base_rot_offset).tolist()
+        self.q_init[2] = float(-base_pos_offset[2])
+        self.q_init[3:7] = (base_rot_offset).tolist()
+
+        self.q_last: list[float] = params.q1.copy()
+        pin.framesForwardKinematics(self.model, self.data, np.array(self.q_last))
+        base_pos_offset = self.data.oMf[frame_id].translation
+        base_rot_offset = R_to_quat(self.data.oMf[frame_id].rotation)
+        self.q_last[2] = float(-base_pos_offset[2])
+        self.q_last[3:7] = (base_rot_offset).tolist()
 
         # for i in range(self.model.njoints):
         #     print(f"{self.model.names[i]}")

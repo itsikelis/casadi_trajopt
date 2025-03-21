@@ -21,8 +21,8 @@ from pinocchio import casadi as cpin
 
 ## Parameter Setup ##
 
-# params = G1_29DOF_PARAMS
-params = TALOS_PARAMS
+params = G1_29DOF_PARAMS
+# params = TALOS_PARAMS
 
 params.assert_validity()
 
@@ -58,15 +58,13 @@ frame_is_init_contact = {
     "right_foot_lower_left": params.is_init_contact["rf"],
 }
 
-q0 = model.q0
-v0 = [0.0 for _ in range(nv)]
 a0 = [0.0 for _ in range(nv)]
 fc0 = [0.0, 0.0, model.total_mass() * env.grav / 8]
 
-q_init = q0
-v_init = v0
-q_last = q0
-v_last = v0
+q_init = model.q_init
+v_init = [0.0 for _ in range(nv)]
+q_last = model.q_last
+v_last = [0.0 for _ in range(nv)]
 
 ## End Model Stuff ##
 
@@ -105,7 +103,7 @@ x = cs.SX.sym("x0", nx, 1)
 w += [x]
 lbw += q_init + v_init
 ubw += q_init + v_init
-w0 += q0 + v0
+w0 += q_init + v_init
 for i in range(params.num_shooting_states):
     ## State related costs
     # J += 1e-5 * cs.dot(x, x)  # Regularisation
@@ -204,7 +202,7 @@ for i in range(params.num_shooting_states):
     else:
         lbw += q_min + v_min
         ubw += q_max + v_max
-    w0 += q0 + v0
+    w0 += q_init + v_init
 
     ## Defect constraint
     g += [x - xk]
