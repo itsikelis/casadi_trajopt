@@ -21,8 +21,8 @@ from pinocchio import casadi as cpin
 
 ## Parameter Setup ##
 
-params = G1_29DOF_PARAMS
-# params = TALOS_PARAMS
+# params = G1_29DOF_PARAMS
+params = TALOS_PARAMS
 
 params.assert_validity()
 
@@ -141,7 +141,7 @@ for i in range(params.num_shooting_states):
                 w0 += fc0
 
                 ## Force related costs
-                # J += 1e-9 * cs.dot(fc, fc) # Regularisation
+                # J += 1e-9 * cs.dot(fc, fc)  # Regularisation
 
                 ## End effector on ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
@@ -152,6 +152,7 @@ for i in range(params.num_shooting_states):
                 ## Zero velocity in contact
                 jac = model.frame_jacobian(frame_name, x[:nq])
                 g += [jac[0:3, :] @ x[nq:]]
+                # g += [model.frame_velocity(frame_name, x[:nq]).linear]
                 lbg += [0.0 for _ in range(3)]
                 ubg += [0.0 for _ in range(3)]
 

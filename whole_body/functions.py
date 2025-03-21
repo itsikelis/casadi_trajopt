@@ -85,6 +85,20 @@ class Model:
         ee_pos = self.cdata.oMf[frame_id].translation
         return ee_pos
 
+    def frame_velocity(self, frame_name: str, q: cs.SX) -> cs.SX:
+        cpin.framesForwardKinematics(self.cmodel, self.cdata, q)
+        frame_id = self.model.getFrameId(frame_name)
+        ref_frame = pin.LOCAL_WORLD_ALIGNED
+        vel = cpin.getFrameVelocity(self.cmodel, self.cdata, frame_id, ref_frame)
+        return vel
+
+    def frame_acceleration(self, frame_name: str, q: cs.SX) -> cs.SX:
+        cpin.framesForwardKinematics(self.cmodel, self.cdata, q)
+        frame_id = self.model.getFrameId(frame_name)
+        ref_frame = pin.LOCAL_WORLD_ALIGNED
+        acc = cpin.getFrameAcceleration(self.cmodel, self.cdata, frame_id, ref_frame)
+        return acc
+
     def frame_jacobian(self, frame_name: str, q: cs.SX) -> cs.SX:
         cpin.computeJointJacobians(self.cmodel, self.cdata, q)
         frame_id = self.model.getFrameId(frame_name)
