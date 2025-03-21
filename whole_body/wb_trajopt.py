@@ -118,7 +118,7 @@ for i in range(params.num_shooting_states):
         ubw += a_max
         w0 += a0
         ## Control acceleration related costs
-        J += cs.dot(a, a)  # Regularisation
+        # J += cs.dot(a, a)  # Regularisation
         # J += cs.sumsqr(model.angular_momentum(x[:nq], x[nq:], a))  # Centroidal dynamics
 
         JtF_sum = cs.SX.zeros(model.nv(), 1)
@@ -145,36 +145,35 @@ for i in range(params.num_shooting_states):
 
                 ## End effector on ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
-                # g += [ee_pos[2] - env.ground_z]
-                # lbg += [0.0]
-                # ubg += [0.0]
+                g += [ee_pos[2] - env.ground_z]
+                lbg += [0.0]
+                ubg += [0.0]
 
                 ## Zero velocity in contact
                 jac = model.frame_jacobian(frame_name, x[:nq])
-                # g += [jac[0:3, :] @ x[nq:]]
-                # lbg += [0.0 for _ in range(3)]
-                # ubg += [0.0 for _ in range(3)]
+                g += [model.frame_velocity(frame_name, x[:nq]).linear]
+                lbg += [0.0 for _ in range(3)]
+                ubg += [0.0 for _ in range(3)]
 
                 ## Zero acceleration in contact
                 # jacdot = model.frame_jacobian_time_var(frame_name, x[:nq])
-                # g += [jac[0:3, :] @ a + jacdot[0:3, :] @ x[nq:]]
+                # g += [model.frame_acceleration(frame_name, x[:nq]).linear]
                 # lbg += [0.0 for _ in range(3)]
                 # ubg += [0.0 for _ in range(3)]
 
-                # addFrictionConeConstraint(env, fc, g, lbg, ubg)
+                addFrictionConeConstraint(env, fc, g, lbg, ubg)
 
                 JtF = cs.mtimes(jac[0:3, :].T, fc)
                 JtF_sum += JtF
             else:
                 # End effector above ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
-                # g += [ee_pos[2] - env.ground_z]
-                # lbg += [0.0]
-                # ubg += [cs.inf]
+                g += [ee_pos[2] - env.ground_z]
+                lbg += [0.0]
+                ubg += [cs.inf]
 
         ## Add dynamics constraint
         g += [model.inverse_dynamics(x[:nq], x[nq:], a, JtF_sum)]
-        print(model.inverse_dynamics(x[:nq], x[nq:], a, JtF_sum).shape)
         lbg += tau_min
         ubg += tau_max
 
@@ -208,11 +207,10 @@ for i in range(params.num_shooting_states):
 
     ## Defect constraint
     # g += [x - xk]
-    # print(model.difference(xk[:nq], x[:nq]).shape)
-    # g += [model.difference(xk[:nq], x[:nq])]
-    # g += [xk[nq:] - x[nq:]]
-    # lbg += [0.0 for _ in range(nx)]
-    # ubg += [0.0 for _ in range(nx)]
+    g += [model.difference(xk[:nq], x[:nq])]
+    g += [xk[nq:] - x[nq:]]
+    lbg += [0.0 for _ in range(nx)]
+    ubg += [0.0 for _ in range(nx)]
 
     ## Current variable = next variable
     x = xk
@@ -229,11 +227,9 @@ print(len(lbg))
 assert cs.vertcat(*w).shape[0] == len(w0) == len(lbw) == len(ubw)
 assert cs.vertcat(*g).shape[0] == len(lbg) == len(ubg)
 
-exit()
-
 ## Create an NLP solver
 opts = {
-    "ipopt.linear_solver": "ma57",
+    "ipopt.linear_solver": "mumps",
     "ipopt.tol": 0.0001,
     "ipopt.constr_viol_tol": 0.0001,
     "ipopt.max_iter": 3000,
@@ -250,7 +246,7 @@ total_ee_contact_points = 0
 for ee in params.contact_ee_names:
     total_ee_contact_points += params.num_contact_points_per_ee[ee]
 
-x = np.zeros((nx, params.num_shooting_states + 1))
+x = np.zeros((nx + 1, params.num_shooting_states + 1))
 a = np.zeros((nv, params.num_shooting_states * params.num_rollout_states))
 fc = np.zeros(
     (
@@ -267,7 +263,9 @@ col_idx = 0
 
 for i in range(params.num_shooting_states):
     # x solution
-    x[:, col_idx] = w_opt[w_opt_idx : w_opt_idx + nx]
+    x_lie = w_opt[w_opt_idx : w_opt_idx + nx]
+    x_quat = np.hstack((pin.exp6_quat(x_lie[0:6]), x_lie[6:]))
+    x[:, col_idx] = x_quat
     w_opt_idx += nx
 
     for j in range(params.num_rollout_states):
@@ -302,7 +300,9 @@ for i in range(params.num_shooting_states):
     col_idx += 1
 
 # Final x solution
-x[:, col_idx] = w_opt[w_opt_idx:]
+x_lie = w_opt[w_opt_idx:]
+x_quat = np.hstack((pin.exp6_quat(x_lie[0:6]), x_lie[6:]))
+x[:, col_idx] = x_quat
 
 np.savetxt("csv/x.csv", x, delimiter="\t,")
 np.savetxt("csv/a.csv", a, delimiter=",")

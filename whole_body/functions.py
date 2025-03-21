@@ -86,11 +86,12 @@ class Model:
         x0_quat = cs.vertcat(cpin.exp6_quat(x0[0:6]), x0[6:])
         x1_quat = cs.vertcat(cpin.exp6_quat(x1[0:6]), x1[6:])
         res = cpin.difference(self.cmodel, x0_quat, x1_quat)
-        return cs.vertcat(
-            cpin.log6_quat(res[0:7]).linear,
-            cpin.log6_quat(res[0:7]).angular,
-            res[7:],
-        )
+        return res
+        # return cs.vertcat(
+        #     cpin.log6_quat(res[0:7]).linear,
+        #     cpin.log6_quat(res[0:7]).angular,
+        #     res[6:],
+        # )
 
     def total_mass(self) -> float:
         pin.computeTotalMass(self.model, self.data)
@@ -110,6 +111,22 @@ class Model:
         ref_frame = pin.LOCAL_WORLD_ALIGNED
         jac = cpin.getFrameJacobian(self.cmodel, self.cdata, frame_id, ref_frame)
         return jac
+
+    def frame_velocity(self, frame_name: str, q: cs.SX) -> cs.SX:
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        cpin.framesForwardKinematics(self.cmodel, self.cdata, q_quat)
+        frame_id = self.model.getFrameId(frame_name)
+        ref_frame = pin.LOCAL_WORLD_ALIGNED
+        vel = cpin.getFrameVelocity(self.cmodel, self.cdata, frame_id, ref_frame)
+        return vel
+
+    def frame_acceleration(self, frame_name: str, q: cs.SX) -> cs.SX:
+        q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
+        cpin.framesForwardKinematics(self.cmodel, self.cdata, q_quat)
+        frame_id = self.model.getFrameId(frame_name)
+        ref_frame = pin.LOCAL_WORLD_ALIGNED
+        acc = cpin.getFrameAcceleration(self.cmodel, self.cdata, frame_id, ref_frame)
+        return acc
 
     def frame_jacobian_time_var(self, frame_name: str, q: cs.SX) -> cs.SX:
         q_quat = cs.vertcat(cpin.exp6_quat(q[0:6]), q[6:])
