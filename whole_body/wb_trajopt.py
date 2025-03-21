@@ -58,15 +58,13 @@ frame_is_init_contact = {
     "right_foot_lower_left": params.is_init_contact["rf"],
 }
 
-q0 = model.q_init
-v0 = [0.0 for _ in range(nv)]
 a0 = [0.0 for _ in range(nv)]
 fc0 = [0.0, 0.0, model.total_mass() * env.grav / 8]
 
-q_init = q0
-v_init = v0
-q_last = q0
-v_last = v0
+q_init = model.q_init
+v_init = [0.0 for _ in range(nv)]
+q_last = model.q_last
+v_last = [0.0 for _ in range(nv)]
 
 ## End Model Stuff ##
 
@@ -105,7 +103,7 @@ x = cs.SX.sym("x0", nx, 1)
 w += [x]
 lbw += q_init + v_init
 ubw += q_init + v_init
-w0 += q0 + v0
+w0 += q_init + v_init
 for i in range(params.num_shooting_states):
     ## State related costs
     # J += 1e-5 * cs.dot(x, x)  # Regularisation
@@ -118,7 +116,7 @@ for i in range(params.num_shooting_states):
         ubw += a_max
         w0 += a0
         ## Control acceleration related costs
-        # J += cs.dot(a, a)  # Regularisation
+        J += cs.dot(a, a)  # Regularisation
         # J += cs.sumsqr(model.angular_momentum(x[:nq], x[nq:], a))  # Centroidal dynamics
 
         JtF_sum = cs.SX.zeros(model.nv(), 1)
@@ -141,7 +139,7 @@ for i in range(params.num_shooting_states):
                 w0 += fc0
 
                 ## Force related costs
-                # J += 1e-6 * cs.dot(fc, fc)  # Regularisation
+                J += 1e-6 * cs.dot(fc, fc)  # Regularisation
 
                 ## End effector on ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
@@ -203,7 +201,7 @@ for i in range(params.num_shooting_states):
     else:
         lbw += q_min + v_min
         ubw += q_max + v_max
-    w0 += q0 + v0
+    w0 += q_init + v_init
 
     ## Defect constraint
     # g += [x - xk]
@@ -229,7 +227,7 @@ assert cs.vertcat(*g).shape[0] == len(lbg) == len(ubg)
 
 ## Create an NLP solver
 opts = {
-    "ipopt.linear_solver": "mumps",
+    "ipopt.linear_solver": "ma57",
     "ipopt.tol": 0.0001,
     "ipopt.constr_viol_tol": 0.0001,
     "ipopt.max_iter": 3000,

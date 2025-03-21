@@ -25,6 +25,7 @@ class Parameters:
         self.dim_f_ext: int = 0
 
         self.q0: list[float] = []
+        self.q1: list[float] = []
 
     def assert_validity(self) -> None:
         for ee in self.ee_phase_sequence:
@@ -40,20 +41,35 @@ class Model:
         self.cmodel: cpin.Model = cpin.Model(self.model)
         self.cdata: cpin.Model = self.cmodel.createData()
 
-        q0 = params.q0.copy()
-        pin.framesForwardKinematics(self.model, self.data, np.array(q0))
+        q0 = np.array(params.q0)
+        pin.framesForwardKinematics(self.model, self.data, q0)
         frame_id = self.model.getFrameId(params.model_foot_sole_link_name)
         base_pos_offset = self.data.oMf[frame_id].translation
         base_rot_offset = R_to_quat(self.data.oMf[frame_id].rotation)
+        base_pos_offset[2] *= -1
+        b_pose = np.hstack((base_pos_offset, base_rot_offset))
+        self.q_init = (
+            pin.log6_quat(b_pose).linear.tolist()
+            + pin.log6_quat(b_pose).angular.tolist()
+            + q0[7:].tolist()
+        )
 
-        b_pose = np.hstack((-base_pos_offset, base_rot_offset))
-        self.q_init = np.hstack(
-            (
-                pin.log6_quat(b_pose).linear,
-                pin.log6_quat(b_pose).angular,
-                params.q0[7:].copy(),
-            )
-        ).tolist()
+        q1 = np.array(params.q1)
+        pin.framesForwardKinematics(self.model, self.data, q1)
+        frame_id = self.model.getFrameId(params.model_foot_sole_link_name)
+        base_pos_offset = self.data.oMf[frame_id].translation
+        base_rot_offset = R_to_quat(self.data.oMf[frame_id].rotation)
+        base_pos_offset[2] *= -1
+        b_pose = np.hstack((base_pos_offset, base_rot_offset))
+        self.q_last = (
+            pin.log6_quat(b_pose).linear.tolist()
+            + pin.log6_quat(b_pose).angular.tolist()
+            + q1[7:].tolist()
+        )
+
+        # print(self.q_init)
+        # print(self.q_last)
+        # exit()
 
         # for i in range(self.model.njoints):
         #     print(f"{self.model.names[i]}")
