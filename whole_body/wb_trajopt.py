@@ -107,7 +107,7 @@ w0 += q_init + v_init
 for i in range(params.num_shooting_states):
     ## State related costs
     # J += 1e-5 * cs.dot(x, x)  # Regularisation
-    # J += 1e-9 * cs.sumsqr(x[7:nq] - q_init[7:]) # Postural
+    # J += 1e-10 * cs.sumsqr(x[7:nq] - q_init[7:])  # Postural
     for j in range(params.num_rollout_states):
         ## Control acceleration variable
         a = cs.SX.sym("a_" + str(i) + "_" + str(j), nv, 1)
@@ -116,7 +116,7 @@ for i in range(params.num_shooting_states):
         ubw += a_max
         w0 += a0
         ## Control acceleration related costs
-        J += 1e-5 * cs.dot(a, a)  # Regularisation
+        J += cs.dot(a, a)  # Regularisation
         # J += cs.sumsqr(model.angular_momentum(x[:nq], x[nq:], a))  # Centroidal dynamics
 
         JtF_sum = cs.SX.zeros(model.nv(), 1)
@@ -139,7 +139,7 @@ for i in range(params.num_shooting_states):
                 w0 += fc0
 
                 ## Force related costs
-                # J += 1e-9 * cs.dot(fc, fc)  # Regularisation
+                J += 1e-6 * cs.dot(fc, fc)  # Regularisation
 
                 ## End effector on ground
                 ee_pos = model.frame_dist_from_ground(frame_name, x[:nq])
@@ -149,14 +149,15 @@ for i in range(params.num_shooting_states):
 
                 ## Zero velocity in contact
                 jac = model.frame_jacobian(frame_name, x[:nq])
-                g += [jac[0:3, :] @ x[nq:]]
-                # g += [model.frame_velocity(frame_name, x[:nq]).linear]
+                # g += [jac[0:3, :] @ x[nq:]]
+                g += [model.frame_velocity(frame_name, x[:nq]).linear]
                 lbg += [0.0 for _ in range(3)]
                 ubg += [0.0 for _ in range(3)]
 
                 ## Zero acceleration in contact
                 # jacdot = model.frame_jacobian_time_var(frame_name, x[:nq])
                 # g += [jac[0:3, :] @ a + jacdot[0:3, :] @ x[nq:]]
+                # g += [model.frame_acceleration(frame_name, x[:nq]).linear]
                 # lbg += [0.0 for _ in range(3)]
                 # ubg += [0.0 for _ in range(3)]
 
@@ -187,7 +188,8 @@ for i in range(params.num_shooting_states):
 
         # Semi-implicit Euler integration
         v = x[nq:] + a * dt
-        p = cpin.integrate(model.cmodel, x[:nq], v * dt)
+        # p = cpin.integrate(model.cmodel, x[:nq], v * dt)
+        p = model.integrate(x[:nq], v * dt)
         x = cs.vertcat(p, v)
 
     ## Add intermediate state as variable
@@ -205,7 +207,9 @@ for i in range(params.num_shooting_states):
     w0 += q_init + v_init
 
     ## Defect constraint
-    g += [x - xk]
+    # g += [x - xk]
+    g += [model.difference(xk[:nq], x[:nq])]
+    g += [xk[nq:] - x[nq:]]
     lbg += [0.0 for _ in range(nx)]
     ubg += [0.0 for _ in range(nx)]
 
@@ -215,6 +219,7 @@ for i in range(params.num_shooting_states):
 # g += [dt_sum - total_duration]
 # lbg += [0.0]
 # ubg += [0.0]
+
 
 ## Assert vector sizes are correct
 assert cs.vertcat(*w).shape[0] == len(w0) == len(lbw) == len(ubw)

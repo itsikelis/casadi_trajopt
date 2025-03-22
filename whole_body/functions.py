@@ -67,10 +67,10 @@ class Model:
         return self.model.nv
 
     def lower_pos_lim(self) -> list[float]:
-        return self.model.lowerPositionLimit.tolist()
+        return [-cs.inf for _ in range(6)] + self.model.lowerPositionLimit.tolist()[7:]
 
     def upper_pos_lim(self) -> list[float]:
-        return self.model.upperPositionLimit.tolist()
+        return [cs.inf for _ in range(6)] + self.model.upperPositionLimit.tolist()[7:]
 
     def lower_vel_lim(self) -> list[float]:
         return (-self.model.velocityLimit).tolist()
@@ -83,6 +83,10 @@ class Model:
 
     def upper_joint_effort_lim(self) -> list[float]:
         return [0.0 for _ in range(6)] + self.model.effortLimit.tolist()[6:]
+
+    def difference(self, x0, x1):
+        res = cpin.difference(self.cmodel, x0, x1)
+        return res
 
     def total_mass(self) -> float:
         pin.computeTotalMass(self.model, self.data)
@@ -127,11 +131,12 @@ class Model:
     def inverse_dynamics(self, q: cs.SX, v: cs.SX, a: cs.SX, JtF_sum: cs.SX) -> cs.SX:
         return cpin.rnea(self.cmodel, self.cdata, q, v, a) - JtF_sum
 
+    def integrate(self, q: cs.SX, v: cs.SX) -> cs.SX:
+        return cpin.integrate(self.cmodel, q, v)
+
     def angular_momentum(self, q: cs.SX, v: cs.SX, a: cs.SX) -> cs.SX:
         cpin.computeCentroidalMomentumTimeVariation(self.cmodel, self.cdata, q, v, a)
         return self.cdata.hg.angular
-
-        return q0
 
 
 class Environment:
