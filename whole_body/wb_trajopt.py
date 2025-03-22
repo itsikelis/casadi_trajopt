@@ -82,8 +82,8 @@ v_max = model.upper_vel_lim()
 a_min = [-cs.inf for _ in range(nv)]
 a_max = [cs.inf for _ in range(nv)]
 
-tau_min = [0.0 for _ in range(6)] + model.lower_joint_effort_lim()
-tau_max = [0.0 for _ in range(6)] + model.upper_joint_effort_lim()
+tau_min = model.lower_joint_effort_lim()
+tau_max = model.upper_joint_effort_lim()
 
 fc_min = [-cs.inf for _ in range(params.dim_f_ext)]
 fc_max = [cs.inf for _ in range(params.dim_f_ext)]
