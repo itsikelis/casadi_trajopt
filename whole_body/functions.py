@@ -67,10 +67,10 @@ class Model:
         return self.model.nv
 
     def lower_pos_lim(self) -> list[float]:
-        return [-cs.inf for _ in range(6)] + self.model.lowerPositionLimit.tolist()[7:]
+        return self.model.lowerPositionLimit.tolist()
 
     def upper_pos_lim(self) -> list[float]:
-        return [cs.inf for _ in range(6)] + self.model.upperPositionLimit.tolist()[7:]
+        return self.model.upperPositionLimit.tolist()
 
     def lower_vel_lim(self) -> list[float]:
         return (-self.model.velocityLimit).tolist()
@@ -85,8 +85,7 @@ class Model:
         return [0.0 for _ in range(6)] + self.model.effortLimit.tolist()[6:]
 
     def difference(self, x0, x1):
-        res = cpin.difference(self.cmodel, x0, x1)
-        return res
+        return cpin.difference(self.cmodel, x0, x1)
 
     def total_mass(self) -> float:
         pin.computeTotalMass(self.model, self.data)

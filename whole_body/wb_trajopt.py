@@ -207,9 +207,9 @@ for i in range(params.num_shooting_states):
     w0 += q_init + v_init
 
     ## Defect constraint
-    # g += [x - xk]
-    g += [model.difference(xk[:nq], x[:nq])]
-    g += [xk[nq:] - x[nq:]]
+    g += [x - xk]
+    # g += [model.difference(xk[:nq], x[:nq])]
+    # g += [xk[nq:] - x[nq:]]
     lbg += [0.0 for _ in range(nx)]
     ubg += [0.0 for _ in range(nx)]
 
