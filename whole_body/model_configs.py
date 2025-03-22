@@ -2,8 +2,8 @@ import os
 from functions import Parameters
 
 G1_29DOF_PARAMS = Parameters()
-G1_29DOF_PARAMS.total_duration = 3.4
-G1_29DOF_PARAMS.num_shooting_states = 34
+G1_29DOF_PARAMS.total_duration = 2.0
+G1_29DOF_PARAMS.num_shooting_states = 20
 # G1_29DOF_PARAMS.total_duration = 1.0
 # G1_29DOF_PARAMS.num_shooting_states = 20
 G1_29DOF_PARAMS.num_rollout_states = 1
@@ -13,10 +13,10 @@ G1_29DOF_PARAMS.model_urdf_path = os.path.join(
 G1_29DOF_PARAMS.model_foot_sole_link_name = "left_foot_point_contact"
 G1_29DOF_PARAMS.contact_ee_names = ["lf", "rf"]
 G1_29DOF_PARAMS.ee_phase_sequence = {
-    # "lf": list((20,)),
-    # "rf": list((20,)),
-    "lf": list((12, 6, 6, 6, 4)),
-    "rf": list((4, 6, 6, 6, 12)),
+    "lf": list((10, 5, 5)),
+    "rf": list((5, 5, 10)),
+    # "lf": list((12, 6, 6, 6, 4)),
+    # "rf": list((4, 6, 6, 6, 12)),
 }
 G1_29DOF_PARAMS.is_init_contact = {"lf": True, "rf": True}
 G1_29DOF_PARAMS.num_contact_points_per_ee = {
@@ -103,8 +103,8 @@ G1_29DOF_PARAMS.q1 = [
 
 
 TALOS_PARAMS = Parameters()
-TALOS_PARAMS.total_duration = 0.5
-TALOS_PARAMS.num_shooting_states = 10
+TALOS_PARAMS.total_duration = 2.0
+TALOS_PARAMS.num_shooting_states = 20
 TALOS_PARAMS.num_rollout_states = 1
 TALOS_PARAMS.opt_dt = False
 TALOS_PARAMS.model_urdf_path = os.path.join(
@@ -113,8 +113,8 @@ TALOS_PARAMS.model_urdf_path = os.path.join(
 TALOS_PARAMS.model_foot_sole_link_name = "left_sole_link"
 TALOS_PARAMS.contact_ee_names = ["lf", "rf"]
 TALOS_PARAMS.ee_phase_sequence = {
-    "lf": list((10,)),
-    "rf": list((10,)),
+    "lf": list((10, 5, 5)),
+    "rf": list((5, 5, 10)),
     # "lf": list((9, 18, 33)),
     # "rf": list((33, 18, 9)),
 }
