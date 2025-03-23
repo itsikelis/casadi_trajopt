@@ -130,8 +130,8 @@ class Model:
     def inverse_dynamics(self, q: cs.SX, v: cs.SX, a: cs.SX, JtF_sum: cs.SX) -> cs.SX:
         return cpin.rnea(self.cmodel, self.cdata, q, v, a) - JtF_sum
 
-    def integrate(self, q: cs.SX, v: cs.SX) -> cs.SX:
-        return cpin.integrate(self.cmodel, q, v)
+    def integrate(self, q: cs.SX, vdt: cs.SX) -> cs.SX:
+        return cpin.integrate(self.cmodel, q, vdt)
 
     def angular_momentum(self, q: cs.SX, v: cs.SX, a: cs.SX) -> cs.SX:
         cpin.computeCentroidalMomentumTimeVariation(self.cmodel, self.cdata, q, v, a)

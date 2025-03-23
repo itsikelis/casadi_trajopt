@@ -106,8 +106,7 @@ ubw += q_init + v_init
 w0 += q_init + v_init
 for i in range(params.num_shooting_states):
     ## State related costs
-    # J += 1e-5 * cs.dot(x, x)  # Regularisation
-    # J += 1e-10 * cs.sumsqr(x[7:nq] - q_init[7:])  # Postural
+    J += 1e-6 * cs.sumsqr(x[7:nq] - q_init[7:])  # Postural
     for j in range(params.num_rollout_states):
         ## Control acceleration variable
         a = cs.SX.sym("a_" + str(i) + "_" + str(j), nv, 1)
@@ -117,7 +116,9 @@ for i in range(params.num_shooting_states):
         w0 += a0
         ## Control acceleration related costs
         J += cs.dot(a, a)  # Regularisation
-        # J += cs.sumsqr(model.angular_momentum(x[:nq], x[nq:], a))  # Centroidal dynamics
+        J += 1e-3 * cs.sumsqr(
+            model.angular_momentum(x[:nq], x[nq:], a)
+        )  # Centroidal dynamics
 
         JtF_sum = cs.SX.zeros(model.nv(), 1)
         for frame_name, phase_seq in frame_phase_sequence.items():
@@ -149,8 +150,8 @@ for i in range(params.num_shooting_states):
 
                 ## Zero velocity in contact
                 jac = model.frame_jacobian(frame_name, x[:nq])
-                # g += [jac[0:3, :] @ x[nq:]]
-                g += [model.frame_velocity(frame_name, x[:nq]).linear]
+                g += [jac[0:3, :] @ x[nq:]]
+                # g += [model.frame_velocity(frame_name, x[:nq]).linear]
                 lbg += [0.0 for _ in range(3)]
                 ubg += [0.0 for _ in range(3)]
 
